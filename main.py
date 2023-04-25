@@ -72,9 +72,12 @@ imshow(content_image, 'Content Image')
 plt.subplot(1, 2, 2)
 imshow(style_image, 'Style Image')
      
-##Fast Style Transfer using TF-Hub
+## Fast Style Transfer using TF-Hub
 
-#This tutorial demonstrates the original style-transfer algorithm, which optimizes the image content to a particular style. Before getting into the details, let's see how the TensorFlow Hub model does this:
+# This tutorial demonstrates the original style-transfer algorithm, 
+# which optimizes the image content to a particular style. 
+# Before getting into the details, let's see how the 
+# TensorFlow Hub model does this:
 
 
 import tensorflow_hub as hub
@@ -84,7 +87,17 @@ tensor_to_image(stylized_image)
      
 ##Define content and style representations
 
-#Use the intermediate layers of the model to get the content and style representations of the image. Starting from the network's input layer, the first few layer activations represent low-level features like edges and textures. As you step through the network, the final few layers represent higher-level features—object parts like wheels or eyes. In this case, you are using the VGG19 network architecture, a pretrained image classification network. These intermediate layers are necessary to define the representation of content and style from the images. For an input image, try to match the corresponding style and content target representations at these intermediate layers.
+# Use the intermediate layers of the model to get the content 
+# and style representations of the image. Starting from the 
+# network's input layer, the first few layer activations represent 
+# low-level features like edges and textures. As you step through 
+# the network, the final few layers represent higher-level features—object 
+# parts like wheels or eyes. In this case, you are using the VGG19 network 
+# architecture, a pretrained image classification network. 
+# These intermediate layers are necessary to define the representation 
+# of content and style from the images. For an input image, try to 
+# match the corresponding style and content target representations 
+# at these intermediate layers.
 
 #Load a VGG19 and test run it on our image to ensure it's used correctly:
 
@@ -108,7 +121,8 @@ print()
 for layer in vgg.layers:
   print(layer.name)
      
-#Choose intermediate layers from the network to represent the style and content of the image:
+#Choose intermediate layers from the network to represent the style 
+# and content of the image:
 
 
 content_layers = ['block5_conv2'] 
@@ -124,8 +138,55 @@ num_style_layers = len(style_layers)
      
 ##Intermediate layers for style and content
 
-#So why do these intermediate outputs within our pretrained image classification network allow us to define style and content representations?
+# So why do these intermediate outputs within 
+# our pretrained image classification network 
+# allow us to define style and content representations?
 
-#At a high level, in order for a network to perform image classification (which this network has been trained to do), it must understand the image. This requires taking the raw image as input pixels and building an internal representation that converts the raw image pixels into a complex understanding of the features present within the image.
+# At a high level, in order for a network to 
+# perform image classification (which this network 
+# has been trained to do), it must understand the image. 
+# This requires taking the raw image as input pixels 
+# and building an internal representation that converts 
+# the raw image pixels into a complex understanding of 
+# the features present within the image.
 
-#This is also a reason why convolutional neural networks are able to generalize well: they’re able to capture the invariances and defining features within classes (e.g. cats vs. dogs) that are agnostic to background noise and other nuisances. Thus, somewhere between where the raw image is fed into the model and the output classification label, the model serves as a complex feature extractor. By accessing intermediate layers of the model, you're able to describe the content and style of input images.
+# This is also a reason why convolutional neural networks 
+# are able to generalize well: they’re able to capture the 
+# invariances and defining features within classes 
+# (e.g. cats vs. dogs) that are agnostic to background noise 
+# and other nuisances. Thus, somewhere between where the raw 
+# image is fed into the model and the output classification label, 
+# the model serves as a complex feature extractor. 
+# By accessing intermediate layers of the model, 
+# you're able to describe the content and style of input images.
+
+# Build the model
+def vgg_layers(layer_names):
+  # Use tf.keras.applications to extract immediate layers
+  vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
+  vgg.trainable = False
+
+  # Build a model to store those immediate layers  
+  outputs = [vgg.get_layer(name).output for name in layer_names]
+  model = tf.keras.Model([vgg.input], outputs)
+  return model
+
+# Create the model
+style_extractor = vgg_layers(style_layers)
+style_outputs = style_extractor(style_image*255)
+
+#Look at the statistics of each layer's output
+for name, output in zip(style_layers, style_outputs):
+  print(name)
+  print("  shape: ", output.numpy().shape)
+  print("  min: ", output.numpy().min())
+  print("  max: ", output.numpy().max())
+  print("  mean: ", output.numpy().mean())
+  print()
+
+# Calculate Style by using Gram-matrix.
+def gram_matrix(input_tensor):
+  result = tf.linalg.einsum('bijc,bijd->bcd', input_tensor, input_tensor)
+  input_shape = tf.shape(input_tensor)
+  num_locations = tf.cast(input_shape[1]*input_shape[2], tf.float32)
+  return result/(num_locations)
