@@ -66,11 +66,11 @@ def imshow(image, title=None):
 content_image = load_img(content_path)
 style_image = load_img(style_path)
 
-plt.subplot(1, 2, 1)
-imshow(content_image, 'Content Image')
+# plt.subplot(1, 2, 1)
+# imshow(content_image, 'Content Image')
 
-plt.subplot(1, 2, 2)
-imshow(style_image, 'Style Image')
+# plt.subplot(1, 2, 2)
+# imshow(style_image, 'Style Image')
      
 ## Fast Style Transfer using TF-Hub
 
@@ -80,10 +80,10 @@ imshow(style_image, 'Style Image')
 # TensorFlow Hub model does this:
 
 
-import tensorflow_hub as hub
-hub_model = hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
-stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
-tensor_to_image(stylized_image)
+# import tensorflow_hub as hub
+# hub_model = hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
+# stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
+# tensor_to_image(stylized_image)
      
 ##Define content and style representations
 
@@ -109,17 +109,17 @@ prediction_probabilities = vgg(x)
 prediction_probabilities.shape
      
 
-predicted_top_5 = tf.keras.applications.vgg19.decode_predictions(prediction_probabilities.numpy())[0]
-[(class_name, prob) for (number, class_name, prob) in predicted_top_5]
+# predicted_top_5 = tf.keras.applications.vgg19.decode_predictions(prediction_probabilities.numpy())[0]
+# [(class_name, prob) for (number, class_name, prob) in predicted_top_5]
      
 #Now load a VGG19 without the classification head, and list the layer names
 
 
 vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
 
-print()
-for layer in vgg.layers:
-  print(layer.name)
+# print()
+# for layer in vgg.layers:
+#   print(layer.name)
      
 #Choose intermediate layers from the network to represent the style 
 # and content of the image:
@@ -176,13 +176,13 @@ style_extractor = vgg_layers(style_layers)
 style_outputs = style_extractor(style_image*255)
 
 #Look at the statistics of each layer's output
-for name, output in zip(style_layers, style_outputs):
-  print(name)
-  print("  shape: ", output.numpy().shape)
-  print("  min: ", output.numpy().min())
-  print("  max: ", output.numpy().max())
-  print("  mean: ", output.numpy().mean())
-  print()
+# for name, output in zip(style_layers, style_outputs):
+#   print(name)
+#   print("  shape: ", output.numpy().shape)
+#   print("  min: ", output.numpy().min())
+#   print("  max: ", output.numpy().max())
+#   print("  mean: ", output.numpy().mean())
+#   print()
 
 # Calculate Style by using Gram-matrix.
 def gram_matrix(input_tensor):
@@ -229,22 +229,22 @@ extractor = StyleContentModel(style_layers, content_layers)
 
 results = extractor(tf.constant(content_image))
 
-print('Styles:')
-for name, output in sorted(results['style'].items()):
-  print("  ", name)
-  print("    shape: ", output.numpy().shape)
-  print("    min: ", output.numpy().min())
-  print("    max: ", output.numpy().max())
-  print("    mean: ", output.numpy().mean())
-  print()
+# print('Styles:')
+# for name, output in sorted(results['style'].items()):
+#   print("  ", name)
+#   print("    shape: ", output.numpy().shape)
+#   print("    min: ", output.numpy().min())
+#   print("    max: ", output.numpy().max())
+#   print("    mean: ", output.numpy().mean())
+#   print()
 
-print("Contents:")
-for name, output in sorted(results['content'].items()):
-  print("  ", name)
-  print("    shape: ", output.numpy().shape)
-  print("    min: ", output.numpy().min())
-  print("    max: ", output.numpy().max())
-  print("    mean: ", output.numpy().mean())
+# print("Contents:")
+# for name, output in sorted(results['content'].items()):
+#   print("  ", name)
+#   print("    shape: ", output.numpy().shape)
+#   print("    min: ", output.numpy().min())
+#   print("    max: ", output.numpy().max())
+#   print("    mean: ", output.numpy().mean())
 
 # Set your style and content target values:
 style_targets = extractor(style_image)['style']
@@ -278,21 +278,24 @@ def style_content_loss(outputs):
     return loss
 
 # Use tf.GradientTape to update the image.
+total_variation_weight=30
+
 @tf.function()
 def train_step(image):
   with tf.GradientTape() as tape:
     outputs = extractor(image)
     loss = style_content_loss(outputs)
+    loss += total_variation_weight*tf.image.total_variation(image)
 
   grad = tape.gradient(loss, image)
   opt.apply_gradients([(grad, image)])
   image.assign(clip_0_1(image))
 
 # Now run a few steps to test:
-train_step(image)
-train_step(image)
-train_step(image)
-tensor_to_image(image)
+# train_step(image)
+# train_step(image)
+# train_step(image)
+# tensor_to_image(image)
 
 # Since it's working, perform a longer optimization:
 import time
@@ -310,7 +313,17 @@ for n in range(epochs):
   display.clear_output(wait=True)
   display.display(tensor_to_image(image))
   print("Train step: {}".format(step))
-  
+
 end = time.time()
 print("Total time: {:.1f}".format(end-start))
-     
+
+file_name = 'stylized-image.png'
+tensor_to_image(image).save(file_name)
+
+try:
+  from google.colab import files
+except ImportError:
+   pass
+else:
+  files.download(file_name)
+  
