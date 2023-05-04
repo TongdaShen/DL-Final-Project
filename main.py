@@ -4,7 +4,7 @@ import tensorflow as tf
 os.environ['TFHUB_MODEL_LOAD_FORMAT'] = 'COMPRESSED'
      
 
-import IPython.display as display
+#import IPython.display as display
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -28,7 +28,8 @@ def tensor_to_image(tensor):
 ##Download images and choose a style image and a content image
 
 content_path = tf.keras.utils.get_file('YellowLabradorLooking_new.jpg', 'https://storage.googleapis.com/download.tensorflow.org/example_images/YellowLabradorLooking_new.jpg')
-style_path = tf.keras.utils.get_file('kandinsky5.jpg','https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg')
+style1_path = tf.keras.utils.get_file('kandinsky5.jpg','https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg')
+style2_path = 'andreas.jpg'
      
 ##Visualize the input
 
@@ -64,7 +65,8 @@ def imshow(image, title=None):
      
 
 content_image = load_img(content_path)
-style_image = load_img(style_path)
+style1_image = load_img(style1_path)
+style2_image = load_img(style2_path)
 
 # plt.subplot(1, 2, 1)
 # imshow(content_image, 'Content Image')
@@ -173,7 +175,8 @@ def vgg_layers(layer_names):
 
 # Create the model
 style_extractor = vgg_layers(style_layers)
-style_outputs = style_extractor(style_image*255)
+style1_outputs = style_extractor(style1_image*255)
+style2_outputs = style_extractor(style2_image*255)
 
 #Look at the statistics of each layer's output
 # for name, output in zip(style_layers, style_outputs):
@@ -247,7 +250,8 @@ results = extractor(tf.constant(content_image))
 #   print("    mean: ", output.numpy().mean())
 
 # Set your style and content target values:
-style_targets = extractor(style_image)['style']
+style1_targets = extractor(style1_image)['style']
+style2_targets = extractor(style2_image)['style']
 content_targets = extractor(content_image)['content']
 
 # Define a tf.Variable to contain the image to optimize. To make this quick, initialize it with the content image (the tf.Variable must be the same shape as the content image):
@@ -264,17 +268,23 @@ opt = tf.keras.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
 style_weight=1e-2
 content_weight=1e4
 
+relative_weight = 0.2
+
 def style_content_loss(outputs):
     style_outputs = outputs['style']
     content_outputs = outputs['content']
-    style_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style_targets[name])**2) 
+    style1_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style1_targets[name])**2) 
                            for name in style_outputs.keys()])
-    style_loss *= style_weight / num_style_layers
+    style1_loss *= style_weight / num_style_layers
+
+    style2_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style2_targets[name])**2) 
+                           for name in style_outputs.keys()])
+    style2_loss *= style_weight / num_style_layers
 
     content_loss = tf.add_n([tf.reduce_mean((content_outputs[name]-content_targets[name])**2) 
                              for name in content_outputs.keys()])
     content_loss *= content_weight / num_content_layers
-    loss = style_loss + content_loss
+    loss = (relative_weight * style1_loss + (1 - relative_weight) * style2_loss) + content_loss 
     return loss
 
 # Use tf.GradientTape to update the image.
@@ -301,7 +311,7 @@ def train_step(image):
 import time
 start = time.time()
 
-epochs = 10
+epochs = 2
 steps_per_epoch = 100
 
 step = 0
@@ -310,8 +320,8 @@ for n in range(epochs):
     step += 1
     train_step(image)
     print(".", end='', flush=True)
-  display.clear_output(wait=True)
-  display.display(tensor_to_image(image))
+  #display.clear_output(wait=True)
+  #display.display(tensor_to_image(image))
   print("Train step: {}".format(step))
 
 end = time.time()
