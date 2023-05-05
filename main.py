@@ -29,7 +29,7 @@ def tensor_to_image(tensor):
 
 content_path = tf.keras.utils.get_file('YellowLabradorLooking_new.jpg', 'https://storage.googleapis.com/download.tensorflow.org/example_images/YellowLabradorLooking_new.jpg')
 style1_path = tf.keras.utils.get_file('kandinsky5.jpg','https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg')
-style2_path = 'andreas.jpg'
+style2_path = 'Mondriaan.jpg'
      
 ##Visualize the input
 
@@ -174,9 +174,9 @@ def vgg_layers(layer_names):
   return model
 
 # Create the model
-style_extractor = vgg_layers(style_layers)
-style1_outputs = style_extractor(style1_image*255)
-style2_outputs = style_extractor(style2_image*255)
+#style_extractor = vgg_layers(style_layers)
+#style1_outputs = style_extractor(style1_image*255)
+#style2_outputs = style_extractor(style2_image*255)
 
 #Look at the statistics of each layer's output
 # for name, output in zip(style_layers, style_outputs):
@@ -268,7 +268,7 @@ opt = tf.keras.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
 style_weight=1e-2
 content_weight=1e4
 
-relative_weight = 0.2
+relative_weight = 0.5
 
 def style_content_loss(outputs):
     style_outputs = outputs['style']
@@ -311,29 +311,39 @@ def train_step(image):
 import time
 start = time.time()
 
-epochs = 2
-steps_per_epoch = 100
+counter = 0
+relative_weight = 0.05
 
-step = 0
-for n in range(epochs):
-  for m in range(steps_per_epoch):
-    step += 1
-    train_step(image)
-    print(".", end='', flush=True)
-  #display.clear_output(wait=True)
-  #display.display(tensor_to_image(image))
-  print("Train step: {}".format(step))
+while counter <= 3:
+  
+  epochs = 2
+  steps_per_epoch = 100
 
-end = time.time()
-print("Total time: {:.1f}".format(end-start))
+  step = 0
+  for n in range(epochs):
+    for m in range(steps_per_epoch):
+      step += 1
+      train_step(image)
+      print(".", end='', flush=True)
+    #display.clear_output(wait=True)
+    #display.display(tensor_to_image(image))
+    print("Train step: {}".format(step))
 
-file_name = 'stylized-image.png'
-tensor_to_image(image).save(file_name)
+  end = time.time()
+  print("Total time: {:.1f}".format(end-start))
 
-try:
-  from google.colab import files
-except ImportError:
-   pass
-else:
-  files.download(file_name)
+  file_name = 'stylized-image' + str(counter) + '.png'
+  tensor_to_image(image).save(file_name)
+
+  try:
+    from google.colab import files
+  except ImportError:
+    pass
+  else:
+    files.download(file_name)
+  
+  relative_weight = relative_weight + 0.3
+  counter = counter + 1      
+
+
   
