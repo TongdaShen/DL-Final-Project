@@ -249,72 +249,70 @@ results = extractor(tf.constant(content_image))
 #   print("    max: ", output.numpy().max())
 #   print("    mean: ", output.numpy().mean())
 
-# Set your style and content target values:
-style1_targets = extractor(style1_image)['style']
-style2_targets = extractor(style2_image)['style']
-content_targets = extractor(content_image)['content']
-
-# Define a tf.Variable to contain the image to optimize. To make this quick, initialize it with the content image (the tf.Variable must be the same shape as the content image):
-image = tf.Variable(content_image)
-
-# Since this is a float image, define a function to keep the pixel values between 0 and 1:
-def clip_0_1(image):
-  return tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
-
-#Create an optimizer. The paper recommends LBFGS, but Adam works okay, too:
-opt = tf.keras.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
-
-#To optimize this, use a weighted combination of the two losses to get the total loss:
-style_weight=1e-2
-content_weight=1e4
-
-relative_weight = 0.5
-
-def style_content_loss(outputs):
-    style_outputs = outputs['style']
-    content_outputs = outputs['content']
-    style1_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style1_targets[name])**2) 
-                           for name in style_outputs.keys()])
-    style1_loss *= style_weight / num_style_layers
-
-    style2_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style2_targets[name])**2) 
-                           for name in style_outputs.keys()])
-    style2_loss *= style_weight / num_style_layers
-
-    content_loss = tf.add_n([tf.reduce_mean((content_outputs[name]-content_targets[name])**2) 
-                             for name in content_outputs.keys()])
-    content_loss *= content_weight / num_content_layers
-    loss = (relative_weight * style1_loss + (1 - relative_weight) * style2_loss) + content_loss 
-    return loss
-
-# Use tf.GradientTape to update the image.
-total_variation_weight=30
-
-@tf.function()
-def train_step(image):
-  with tf.GradientTape() as tape:
-    outputs = extractor(image)
-    loss = style_content_loss(outputs)
-    loss += total_variation_weight*tf.image.total_variation(image)
-
-  grad = tape.gradient(loss, image)
-  opt.apply_gradients([(grad, image)])
-  image.assign(clip_0_1(image))
-
-# Now run a few steps to test:
-# train_step(image)
-# train_step(image)
-# train_step(image)
-# tensor_to_image(image)
-
-# Since it's working, perform a longer optimization:
-import time
-start = time.time()
-
 counter = 0
-relative_weight = 0.05
+relative_weight = 0.9
 
-while counter <= 3:
+while counter <= 4:
+
+  # Set your style and content target values:
+  style1_targets = extractor(style1_image)['style']
+  style2_targets = extractor(style2_image)['style']
+  content_targets = extractor(content_image)['content']
+
+  # Define a tf.Variable to contain the image to optimize. To make this quick, initialize it with the content image (the tf.Variable must be the same shape as the content image):
+  image = tf.Variable(content_image)
+
+  # Since this is a float image, define a function to keep the pixel values between 0 and 1:
+  def clip_0_1(image):
+    return tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
+
+  #Create an optimizer. The paper recommends LBFGS, but Adam works okay, too:
+  opt = tf.keras.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
+
+  #To optimize this, use a weighted combination of the two losses to get the total loss:
+  style_weight=1e-2
+  content_weight=1e4
+
+  def style_content_loss(outputs):
+      style_outputs = outputs['style']
+      content_outputs = outputs['content']
+      style1_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style1_targets[name])**2) 
+                            for name in style_outputs.keys()])
+      style1_loss *= style_weight / num_style_layers
+
+      style2_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style2_targets[name])**2) 
+                            for name in style_outputs.keys()])
+      style2_loss *= style_weight / num_style_layers
+
+      content_loss = tf.add_n([tf.reduce_mean((content_outputs[name]-content_targets[name])**2) 
+                              for name in content_outputs.keys()])
+      content_loss *= content_weight / num_content_layers
+      loss = (relative_weight * style1_loss + (1 - relative_weight) * style2_loss) + content_loss 
+      return loss
+
+  # Use tf.GradientTape to update the image.
+  total_variation_weight=30
+
+  @tf.function()
+  def train_step(image):
+    with tf.GradientTape() as tape:
+      outputs = extractor(image)
+      loss = style_content_loss(outputs)
+      loss += total_variation_weight*tf.image.total_variation(image)
+
+    grad = tape.gradient(loss, image)
+    opt.apply_gradients([(grad, image)])
+    image.assign(clip_0_1(image))
+
+  # Now run a few steps to test:
+  # train_step(image)
+  # train_step(image)
+  # train_step(image)
+  # tensor_to_image(image)
+
+  # Since it's working, perform a longer optimization:
+  import time
+  start = time.time()
   
   epochs = 2
   steps_per_epoch = 100
@@ -342,8 +340,5 @@ while counter <= 3:
   else:
     files.download(file_name)
   
-  relative_weight = relative_weight + 0.3
+  relative_weight = relative_weight - 0.2
   counter = counter + 1      
-
-
-  
