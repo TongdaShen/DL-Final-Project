@@ -15,6 +15,14 @@ import numpy as np
 import PIL.Image
 import time
 import functools
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import filters, feature
+from skimage.measure import regionprops
+import math
+from skimage.color import rgb2gray
      
 
 def tensor_to_image(tensor):
@@ -119,7 +127,6 @@ prediction_probabilities.shape
 
 vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
 
-
 # print()
 # for layer in vgg.layers:
 #   print(layer.name)
@@ -172,7 +179,6 @@ def vgg_layers(layer_names):
   # Build a model to store those immediate layers  
   outputs = [vgg.get_layer(name).output for name in layer_names]
   model = tf.keras.Model([vgg.input], outputs)
-  model.summary()
   return model
 
 # Create the model
@@ -254,6 +260,7 @@ results = extractor(tf.constant(content_image))
 counter = 0
 relative_weight = 0.9
 
+
 while counter <= 4:
 
   # Set your style and content target values:
@@ -332,7 +339,7 @@ while counter <= 4:
   end = time.time()
   print("Total time: {:.1f}".format(end-start))
 
-  file_name = 'stylized-image' + str(counter) + '.png'
+  file_name = 'stylized-image' + str(counter) + '.jpg'
   tensor_to_image(image).save(file_name)
 
   try:
@@ -343,4 +350,196 @@ while counter <= 4:
     files.download(file_name)
   
   relative_weight = relative_weight - 0.2
-  counter = counter + 1    
+  counter = counter + 1  
+
+import cv2
+
+content_imageC = np.squeeze(content_image)
+imageC = np.squeeze(image)
+
+content_yuv = cv2.cvtColor(np.float32(content_imageC), cv2.COLOR_RGB2YUV)
+transfer_yuv = cv2.cvtColor(np.float32(imageC), cv2.COLOR_RGB2YUV)
+transfer_yuv[:,:,1:3] = content_yuv[:,:,1:3]
+color_preserved_transfer = cv2.cvtColor(transfer_yuv, cv2.COLOR_YUV2RGB)
+file_name = 'color-preserved-transfer.png'
+tensor_to_image(color_preserved_transfer).save(file_name)    
+
+# Sharp edges detector and eliminator
+
+counter2 = 0
+
+while counter2 <= 4:
+
+  mixed_image_path = 'stylized-image' + str(counter2) + '.jpg'
+
+  mixed_image = load_img(mixed_image_path)
+
+  mixed_image = np.squeeze(mixed_image)
+  mixed_image2 = rgb2gray(mixed_image)
+
+  dx = filters.sobel_v(mixed_image2)
+  dy = filters.sobel_h(mixed_image2)
+
+  grad_mag = np.sqrt(dx ** 2 + dy ** 2)
+  grad_ori = np.arctan2(dy, dx)
+
+  print(grad_mag.shape)
+
+  mixed_image_size = mixed_image.shape
+  mixed_image_height = mixed_image_size[0]
+  mixed_image_width = mixed_image_size[1]
+
+  print(mixed_image_size)
+  print(mixed_image.shape)
+
+  mixed_image = mixed_image.copy()
+
+  for i in range(2,mixed_image_height-1):
+    for j in range(2,mixed_image_width-1):
+      if grad_mag[i][j] > 0.3:
+        for m in range(3):
+          a = np.array([
+              [mixed_image[i-1][j-1][m],mixed_image[i-1][j][m],mixed_image[i-1][j+1][m]],
+              [mixed_image[i][j-1][m],mixed_image[i][j][m],mixed_image[i][j+1][m]],
+              [mixed_image[i+1][j-1][m],mixed_image[i+1][j][m],mixed_image[i+1][j+1][m]]
+              ])
+          x = filters.gaussian(a, sigma=0.4)
+          if m == 0:
+            mixed_image[i-1][j-1] = [x[0][0],mixed_image[i-1][j-1][1],mixed_image[i-1][j-1][2]]
+            mixed_image[i-1][j] = [x[0][1],mixed_image[i-1][j][1],mixed_image[i-1][j][2]]
+            mixed_image[i-1][j+1] = [x[0][2],mixed_image[i-1][j+1][1],mixed_image[i-1][j+1][2]]
+            mixed_image[i][j-1] = [x[1][0],mixed_image[i][j-1][1],mixed_image[i][j-1][2]]
+            mixed_image[i][j] = [x[1][1],mixed_image[i][j][1],mixed_image[i][j][2]]
+            mixed_image[i][j+1] = [x[1][2],mixed_image[i][j+1][1],mixed_image[i][j+1][2]]
+            mixed_image[i+1][j-1] = [x[2][0],mixed_image[i+1][j-1][1],mixed_image[i+1][j-1][2]]
+            mixed_image[i+1][j] = [x[2][1],mixed_image[i+1][j][1],mixed_image[i+1][j][2]]
+            mixed_image[i+1][j+1] = [x[2][2],mixed_image[i+1][j+1][1],mixed_image[i+1][j+1][2]]
+          if m == 1:
+            mixed_image[i-1][j-1] = [mixed_image[i-1][j-1][0],x[0][0],mixed_image[i-1][j-1][2]]
+            mixed_image[i-1][j] = [mixed_image[i-1][j][0],x[0][1],mixed_image[i-1][j][2]]
+            mixed_image[i-1][j+1] = [mixed_image[i-1][j+1][0],x[0][2],mixed_image[i-1][j+1][2]]
+            mixed_image[i][j-1] = [mixed_image[i][j-1][0],x[1][0],mixed_image[i][j-1][2]]
+            mixed_image[i][j] = [mixed_image[i][j][0],x[1][1],mixed_image[i][j][2]]
+            mixed_image[i][j+1] = [mixed_image[i][j+1][0],x[1][2],mixed_image[i][j+1][2]]
+            mixed_image[i+1][j-1] = [mixed_image[i+1][j-1][0],x[2][0],mixed_image[i+1][j-1][2]]
+            mixed_image[i+1][j] = [mixed_image[i+1][j][0],x[2][1],mixed_image[i+1][j][2]]
+            mixed_image[i+1][j+1] = [mixed_image[i+1][j+1][0],x[2][2],mixed_image[i+1][j+1][2]]
+          if m == 2:
+            mixed_image[i-1][j-1] = [mixed_image[i-1][j-1][0],mixed_image[i-1][j-1][1],x[0][0]]
+            mixed_image[i-1][j] = [mixed_image[i-1][j][0],mixed_image[i-1][j][1],x[0][1]]
+            mixed_image[i-1][j+1] = [mixed_image[i-1][j+1][0],mixed_image[i-1][j+1][1],x[0][2]]
+            mixed_image[i][j-1] = [mixed_image[i][j-1][0],mixed_image[i][j-1][1],x[1][0]]
+            mixed_image[i][j] = [mixed_image[i][j][0],mixed_image[i][j][1],x[1][1]]
+            mixed_image[i][j+1] = [mixed_image[i][j+1][0],mixed_image[i][j+1][1],x[1][2]]
+            mixed_image[i+1][j-1] = [mixed_image[i+1][j-1][0],mixed_image[i+1][j-1][1],x[2][0]]
+            mixed_image[i+1][j] = [mixed_image[i+1][j][0],mixed_image[i+1][j][1],x[2][1]]
+            mixed_image[i+1][j+1] = [mixed_image[i+1][j+1][0],mixed_image[i+1][j+1][1],x[2][2]]
+
+  file_name = 'stylized-image_no_sharp_edge' + str(counter2) + '.jpg'
+  tensor_to_image(mixed_image).save(file_name)
+
+  try:
+    from google.colab import files
+  except ImportError:
+    pass
+  else:
+    files.download(file_name)
+
+  counter2 += 1
+
+# Region Brightness Opmitimation
+
+mixed_image_path = 'stylized-image4.jpg'
+
+mixed_image = load_img(mixed_image_path)
+
+mixed_image = np.squeeze(mixed_image)
+mixed_image2 = rgb2gray(mixed_image)
+
+mixed_image_size = mixed_image.shape
+mixed_image_height = mixed_image_size[0]
+mixed_image_width = mixed_image_size[1]
+
+region_height = mixed_image_height//10
+region_width = mixed_image_width//10
+
+sum = 0
+
+for i in range(0,region_height):
+  for j in range(0,region_width):
+    for n in range(3):
+      sum += mixed_image[i][j][n]
+
+if sum >= 3*region_height*region_width*0.5:
+  relative_weight = 0.9-0.3
+  # Set your style and content target values:
+  style1_targets = extractor(style1_image)['style']
+  style2_targets = extractor(style2_image)['style']
+  content_targets = extractor(content_image)['content']
+
+  # Define a tf.Variable to contain the image to optimize. To make this quick, initialize it with the content image (the tf.Variable must be the same shape as the content image):
+  image = tf.Variable(content_image)
+
+  #Create an optimizer. The paper recommends LBFGS, but Adam works okay, too:
+  opt = tf.keras.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
+
+  #To optimize this, use a weighted combination of the two losses to get the total loss:
+  style_weight=1e-2
+  content_weight=1e4
+
+  # Use tf.GradientTape to update the image.
+  total_variation_weight=30
+
+  # Since it's working, perform a longer optimization:
+  import time
+  start = time.time()
+  
+  epochs = 2
+  steps_per_epoch = 100
+
+  step = 0
+  for n in range(epochs):
+    for m in range(steps_per_epoch):
+      step += 1
+      train_step(image)
+      print(".", end='', flush=True)
+    #display.clear_output(wait=True)
+    #display.display(tensor_to_image(image))
+    print("Train step: {}".format(step))
+
+  end = time.time()
+  print("Total time: {:.1f}".format(end-start))
+
+  file_name = 'stylized-image_brightness.jpg'
+  tensor_to_image(image).save(file_name)
+
+  try:
+    from google.colab import files
+  except ImportError:
+    pass
+  else:
+    files.download(file_name)
+
+  new_image_path = 'stylized-image_brightness.jpg'
+
+  new_image = load_img(mixed_image_path)
+
+  new_image = np.squeeze(mixed_image)
+  new_image2 = rgb2gray(mixed_image)
+
+  mixed_image = mixed_image.copy()
+
+  for o in range(0,region_height):
+    for p in range(0,region_width):
+      for q in range(3):
+        mixed_image[o][p][q] = new_image[o][p][q]
+
+  file_name = 'stylized-image_brightness_new.jpg'
+  tensor_to_image(mixed_image).save(file_name)
+
+  try:
+    from google.colab import files
+  except ImportError:
+    pass
+  else:
+    files.download(file_name)
