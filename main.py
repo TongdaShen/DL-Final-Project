@@ -119,6 +119,7 @@ prediction_probabilities.shape
 
 vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
 
+
 # print()
 # for layer in vgg.layers:
 #   print(layer.name)
@@ -171,6 +172,7 @@ def vgg_layers(layer_names):
   # Build a model to store those immediate layers  
   outputs = [vgg.get_layer(name).output for name in layer_names]
   model = tf.keras.Model([vgg.input], outputs)
+  model.summary()
   return model
 
 # Create the model
@@ -341,4 +343,4 @@ while counter <= 4:
     files.download(file_name)
   
   relative_weight = relative_weight - 0.2
-  counter = counter + 1      
+  counter = counter + 1    
