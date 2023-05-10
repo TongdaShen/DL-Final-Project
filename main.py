@@ -223,6 +223,13 @@ def color_preserving_style_transfer():
 
 color_preserving_style_transfer()
 
+
+
+
+
+
+
+
 # Performs sharp edges detector and eliminator
 counter2 = 0
 
@@ -295,6 +302,12 @@ while counter2 <= 4:
 
 
 
+     
+     
+     
+     
+     
+     
 # Performs region brightness opmitimation
 
 dict = {'stylized-image0.jpg':[0.5,0.5],'stylized-image1.jpg':[0.4,0.4],
@@ -405,3 +418,166 @@ for k in range(5):
           chosen_image2 = chosen_image2.copy()
 
   download_file(file_name)
+
+
+
+
+
+
+
+
+
+# Masked Style Transfer
+# 
+
+import os
+import numpy as np
+# from scipy.misc import imread, imresize, imsave
+
+
+# function to load masks
+def load_mask(mask_path):
+    mask = load_img(mask_path)
+    mask = np.squeeze(mask)
+    mask = rgb2gray(mask)
+    print(mask) # Grayscale mask load
+
+    # Perform binarization of mask
+    mask[mask <= 0.5] = 0
+    mask[mask > 0.5] = 1
+
+    return mask
+
+
+# function to apply mask to generated image
+def mask_content(content, generated, mask):
+    width, height, channels = generated.shape
+    generated = generated.copy()
+
+    for i in range(width):
+        for j in range(height):
+            if mask[i, j] == 0:
+                generated[i, j, :] = mask[i, j]
+
+    return generated
+  
+import imageio
+from PIL import Image
+
+generated_image = load_img('dog.png')
+generated_image = np.squeeze(generated_image)
+
+content_image = load_img('dog.png')
+content_image = np.squeeze(content_image)
+
+mask = load_mask('dog.png')
+
+img = mask_content(content_image, generated_image, mask)
+file_name = '1.jpg'
+tensor_to_image(img).save(file_name)
+
+# Set your style and content target values:
+style_image = load_img("color.jpg")
+style_targets = extractor(style_image)['style']
+content_image = load_img("1.jpg")
+content_targets = extractor(content_image)['content']
+
+# Define a tf.Variable to contain the image to optimize. To make this quick, initialize it with the content image (the tf.Variable must be the same shape as the content image):
+image = tf.Variable(content_image)
+
+  # Since this is a float image, define a function to keep the pixel values between 0 and 1:
+def clip_0_1(image):
+  return tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
+
+  #Create an optimizer. The paper recommends LBFGS, but Adam works okay, too:
+opt = tf.keras.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
+
+  #To optimize this, use a weighted combination of the two losses to get the total loss:
+style_weight=1e-2
+content_weight=1e4
+
+def style_content_loss1(outputs):
+  style_outputs = outputs['style']
+  content_outputs = outputs['content']
+
+      # where are those layer weights?
+
+  style_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style_targets[name])**2) 
+                            for name in style_outputs.keys()])
+  style_loss *= style_weight / num_style_layers
+
+  content_loss = tf.add_n([tf.reduce_mean((content_outputs[name]-content_targets[name])**2) 
+                              for name in content_outputs.keys()])
+  content_loss *= content_weight / num_content_layers
+  loss = style_loss + content_loss 
+  return loss
+
+  # Use tf.GradientTape to update the image.
+total_variation_weight=30
+
+@tf.function()
+def train_step(image):
+  with tf.GradientTape() as tape:
+    outputs = extractor(image)
+    loss = style_content_loss1(outputs)
+    loss += total_variation_weight*tf.image.total_variation(image)
+
+  grad = tape.gradient(loss, image)
+  opt.apply_gradients([(grad, image)])
+  image.assign(clip_0_1(image))
+
+  # Now run a few steps to test:
+  # train_step(image)
+  # train_step(image)
+  # train_step(image)
+  # tensor_to_image(image)
+
+  # Since it's working, perform a longer optimization:
+import time
+start = time.time()
+  
+epochs = 2
+steps_per_epoch = 100
+
+step = 0
+for n in range(epochs):
+  for m in range(steps_per_epoch):
+    step += 1
+    train_step(image)
+    print(".", end='', flush=True)
+    #display.clear_output(wait=True)
+    #display.display(tensor_to_image(image))
+  print("Train step: {}".format(step))
+
+end = time.time()
+print("Total time: {:.1f}".format(end-start))
+
+file_name = '2.jpg'
+tensor_to_image(image).save(file_name)
+
+def mask_on_style_transfer(train, pre):
+  _, width, height, _ = train.shape
+  pre = np.squeeze(pre)
+  pre = pre.copy()
+  train = np.squeeze(train)
+  for i in range(width):
+    for j in range(height):
+      for c in range(3):
+        if pre[i][j][c] == 0:
+          pre[i][j][c] = train[i][j][c]
+
+  return pre
+
+img1 = load_img('2.jpg')
+img2 = load_img('1.jpg')
+
+result = mask_on_style_transfer(img1,img2)
+file_name = '3.jpg'
+tensor_to_image(result).save(file_name)
+
+try:
+  from google.colab import files
+except ImportError:
+  pass
+else:
+  files.download(file_name)
