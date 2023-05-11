@@ -130,6 +130,13 @@ def style_content_loss(outputs):
   num_style_layers = len(style_layers)
   num_content_layers = len(content_layers)
   style_outputs = outputs['style']
+  for name in style_outputs.keys():
+        if name == 'block3_conv1':
+          style_outputs[name] = style_outputs[name]*0.2
+        if name == 'block4_conv1':
+          style_outputs[name] = style_outputs[name]*0.3
+        if name == 'block5_conv1':
+          style_outputs[name] = style_outputs[name]*0.01
   content_outputs = outputs['content']
 
   style1_loss = tf.add_n([tf.reduce_mean((style_outputs[name]-style1_targets[name])**2) for name in style_outputs.keys()])
